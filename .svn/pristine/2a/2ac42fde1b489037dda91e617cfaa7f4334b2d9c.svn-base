@@ -1,0 +1,54 @@
+/*
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package jungdemo;
+
+import edu.uci.ics.jung.graph.util.EdgeType;
+
+/**
+ *
+ * @author Shrikant
+ */
+public class Edge {
+
+    public String getEdgeName() {
+        return edgeName;
+    }
+
+    public void setEdgeName(String edgeName) {
+        this.edgeName = edgeName;
+    }
+
+    private String edgeName;
+    public int getEndpoint1() {
+        return endpoint1;
+    }
+
+    public void setEndpoint1(int endpoint1) {
+        this.endpoint1 = endpoint1;
+    }
+
+    public int getEndpoint2() {
+        return endpoint2;
+    }
+
+    public void setEndpoint2(int endpoint2) {
+        this.endpoint2 = endpoint2;
+    }
+    
+    private int endpoint1;
+    private int endpoint2;
+
+    public EdgeType getType() {
+        return type;
+    }
+
+    public void setType(EdgeType type) {
+        this.type = type;
+    }
+    private EdgeType type;
+    public String toString(){
+		return "";		
+	}
+}

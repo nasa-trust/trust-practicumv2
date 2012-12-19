@@ -1,0 +1,216 @@
+package dataset.utility;
+
+import java.io.*;
+import java.net.*;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.*;
+
+import org.json.simple.parser.*;
+
+/**
+ * @author NASA-Trust-Team
+ * 
+ */
+public class Utility {
+	public static boolean modeDebug = false;
+	public static boolean modeDebugUtility = false;
+	public static int noHTTPRequest = 0;
+	public static boolean hitLimit = false;
+
+	public Utility() {
+		super();
+	}
+
+	public static String sendGetRequest(String destinationURL)
+			throws IOException
+	// TODO optimize this code by checking X-FeatureRateLimit status
+	{
+		int code = 0;
+		noHTTPRequest++;
+		try {
+			URL url = new URL(destinationURL);
+			URLConnection urlConnection = url.openConnection();
+			code = ((HttpURLConnection) urlConnection).getResponseCode();
+			BufferedReader rd = new BufferedReader(new InputStreamReader(
+					urlConnection.getInputStream()));
+			StringBuffer sb = new StringBuffer();
+			String line;
+			while ((line = rd.readLine()) != null)
+				sb.append(line);
+			rd.close();
+			Utility.hitLimit = false;
+			return sb.toString();
+		} catch (IOException e) {
+			System.out.println("Error from sendGetRequest: " + e.getMessage());
+			if (code == 400) {
+				Utility.hitLimit = true;
+				System.out.println("Total HTTP request: " + noHTTPRequest);
+				return "400";
+			} else if (code == 401) {
+				Utility.hitLimit = false;
+				return "unauthorized";
+			} else {
+				Utility.hitLimit = false;
+				System.out.println("Undefinde Error");
+				return null;
+			}
+		}
+	}
+
+	public static Object decodeJSON(String inputJSON, String field) {
+		if (modeDebugUtility)
+			System.out.println("Input JSON: " + inputJSON);
+		JSONParser parser = new JSONParser();
+		ContainerFactory containerFactory = new ContainerFactory() {
+			public List creatArrayContainer() {
+				return new LinkedList();
+			}
+
+			public Map createObjectContainer() {
+				return new LinkedHashMap();
+			}
+		};
+		Map json = null;
+		try {
+			json = (Map) parser.parse(inputJSON, containerFactory);
+		} catch (ParseException e) {
+			e.printStackTrace();
+		}
+		Iterator iter = json.entrySet().iterator();
+		Object returnObject = null;
+		while (iter.hasNext()) {
+			Map.Entry entry = (Map.Entry) iter.next();
+			if (entry.getKey().toString().compareTo(field) == 0) {
+				returnObject = entry.getValue();
+				if (modeDebugUtility)
+					System.out.println("Get ID:" + entry.getValue());
+			}
+		}
+		return returnObject;
+	}
+
+	public static String decodeJSON(String receiveJSON, String receiveField,
+			int dummy) throws ParseException {
+		JSONParser parser = new JSONParser();
+		UtilityKeyFinder finder = new UtilityKeyFinder();
+		finder.setMatchKey(receiveField);
+		while (!finder.isEnd()) {
+			parser.parse(receiveJSON, finder, true);
+			if (finder.isFound()) {
+				finder.setFound(false);
+				if (modeDebugUtility)
+					System.out.println(finder.getValue());
+				return String.valueOf(finder.getValue());
+			}
+		}
+		return "not found";
+	}
+
+	public static LinkedList<String> readCSV(String inputFileName)
+			throws IOException {
+		String fileName = inputFileName;
+		LineNumberReader lnr = new LineNumberReader(new FileReader(new File(
+				fileName)));
+		lnr.skip(Long.MAX_VALUE);
+		System.out.println("Total number of nodeA: " + lnr.getLineNumber());
+		LinkedList<String> nameList = new LinkedList<String>();
+		BufferedReader bufferedReader = new BufferedReader(new FileReader(new File(
+				fileName)));
+		String line = null;
+
+		while ((line = bufferedReader.readLine()) != null) {
+			if (modeDebugUtility)
+				System.out.println(line);
+			nameList.add(nameList.size(), line);
+		}
+		bufferedReader.close();
+		return nameList;
+	}
+
+	public static void writeCSV(LinkedList<String> nodeA,
+			LinkedList<String> nodeB, String pathName) throws IOException {
+		FileWriter fileWriter = new FileWriter(pathName);
+		PrintWriter printWriter = new PrintWriter(fileWriter);
+		for (int i = 0; i < nodeB.size(); i = i + 1) {
+			printWriter.print(nodeA.get(i));
+			printWriter.print(",");
+			printWriter.println(nodeB.get(i));
+		}
+		printWriter.flush();
+		printWriter.close();
+		fileWriter.close();
+	}
+
+	public static void writeMySQL(String query, Connection connection) {
+		try {
+			Statement statement = connection.createStatement();
+			statement.executeUpdate(query);
+			System.out.println(query);
+			statement.close();
+		} catch (Exception e) {
+			System.out.println("Error from writeMySQL: " + e.getMessage());
+			System.out.println("Error from statement: " + query);
+		}
+	}
+
+	public static LinkedList<String> readMySQL(String query, Connection con) {
+		LinkedList<String> output = new LinkedList<String>();
+		try {
+			Statement statement = con.createStatement();
+			ResultSet resultSet = statement.executeQuery(query);
+			while (resultSet.next())
+				output.add(resultSet.getString(1).toString());
+			resultSet.close();
+			statement.close();
+		} catch (Exception e) {
+			System.out.println("Error from readMySQL: " + e.getMessage());
+			System.out.println("Error from statement: " + query);
+		}
+		return output;
+	}
+
+	public static boolean checkNodeExist(String value, Connection con) {
+		String query = null;
+		boolean exist = false;
+		try {
+			query = "SELECT * FROM twitter.node WHERE id = '" + value + "';";
+			Statement statement = con.createStatement();
+			ResultSet resultSet = statement.executeQuery(query);
+			if (resultSet.next())
+				exist = true;
+			resultSet.close();
+			statement.close();
+		} catch (Exception e) {
+			System.out.println("Error from checkNodeExist: " + e.getMessage());
+			System.out.println("Error from statement: " + query);
+		}
+		return exist;
+	}
+
+	public static boolean checkEdgeExist(String id1, String id2, Connection con) // TODO
+																					// optimize
+																					// later
+	{
+		String query = null;
+		boolean exist = false;
+		try {
+			query = "SELECT * FROM twitter.edge WHERE nodeA_id = '" + id1
+					+ "' AND nodeB_id = '" + id2 + "';";
+			Statement statement = con.createStatement();
+			ResultSet resultSet = statement.executeQuery(query);
+			if (resultSet.next()) {
+				exist = true;
+				System.out.println("SQL EDGE DB Duplicate: nodeA_id = " + id1
+						+ " and nodeB_id = " + id2);
+			}
+			resultSet.close();
+			statement.close();
+		} catch (Exception e) {
+			System.out.println("Error from checkEdgeExist: " + e.getMessage());
+			System.out.println("Error from statement: " + query);
+		}
+		return exist;
+	}
+}

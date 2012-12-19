@@ -1,0 +1,174 @@
+package jungdemo;
+
+/*
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+
+import dataset.*;
+import dataset.twitterDataProcessing.UserAccount;
+import edu.uci.ics.jung.algorithms.layout.ISOMLayout;
+import edu.uci.ics.jung.algorithms.layout.Layout;
+import edu.uci.ics.jung.graph.Graph;
+import edu.uci.ics.jung.graph.SparseMultigraph;
+import edu.uci.ics.jung.graph.util.EdgeType;
+import edu.uci.ics.jung.visualization.VisualizationViewer;
+import edu.uci.ics.jung.visualization.decorators.ToStringLabeller;
+import element.Edge;
+import element.Node;
+
+import java.awt.Dimension;
+import java.awt.Shape;
+import java.awt.geom.Ellipse2D;
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.Set;
+
+import javax.swing.JFrame;
+
+import org.apache.commons.collections15.Transformer;
+
+/**
+ * 
+ * @author NASA-Trust-Team
+ */
+public class JUNGDemo {
+	public static final boolean DEBUG_FLAG = false;
+
+	/**
+	 * @param args
+	 *            the command line arguments
+	 */
+	public static void main(String[] args) {
+
+		// Fetches twitter dataset
+		DatasetInterface dataset = new TwitterDataSource();
+
+		HashMap<String, UserAccount> userAccount = dataset.getDataset();
+
+		Map<String, Node> twNodes = new HashMap<String, Node>(
+				getTwitterNodes(userAccount));
+
+		Iterator<String> iterator = twNodes.keySet().iterator();
+
+		if (DEBUG_FLAG) {
+			while (iterator.hasNext()) {
+				String key = iterator.next().toString();
+				System.out.println("----------Node--------------");
+				System.out.println(twNodes.get(key).getTwitterId());
+				System.out.println(twNodes.get(key).getPopularity());
+			}
+			System.out.println("---------END----------");
+		}
+		Map<Integer, Edge> twEdges = new HashMap<Integer, Edge>(
+				getTwitterEdges(userAccount, twNodes));
+
+		JUNGDemo demo = new JUNGDemo();
+		Graph<Node, Edge> graph = demo.instantiateGraphCreation(twNodes,
+				twEdges);
+		demo.projectGraph(graph);
+	}
+
+	public Graph<Node, Edge> instantiateGraphCreation(Map<String, Node> nodes,
+			Map<Integer, Edge> edges) {
+		Graph<Node, Edge> graph = new SparseMultigraph<Node, Edge>();
+		Set<String> nodesSet = nodes.keySet();
+		Iterator<String> itNodes = nodesSet.iterator();
+		while (itNodes.hasNext()) {
+			String twitterId = itNodes.next();
+			Node node = nodes.get(twitterId);
+			graph.addVertex(node);
+		}
+		Set<Integer> edgesSet = edges.keySet();
+		Iterator<Integer> itEdges = edgesSet.iterator();
+		while (itEdges.hasNext()) {
+			int edgeValue = itEdges.next();
+			Edge edge = edges.get(edgeValue);
+			graph.addEdge(edge, edge.getStartNode(), edge.getEndNode(),
+					EdgeType.DIRECTED);
+		}
+		if (DEBUG_FLAG) {
+			System.out.println("Edges:" + edges);
+			System.out.println("Graph:" + graph);
+		}
+		return graph;
+	}
+
+	public void projectGraph(Graph<Node, Edge> graph) {
+		Layout<Node, Edge> layout = new ISOMLayout<Node, Edge>(graph);
+
+		// Sets the initial size of the applet
+		layout.setSize(new Dimension(1000, 700));
+		VisualizationViewer<Node, Edge> visualizationViewer = new VisualizationViewer<Node, Edge>(
+				layout);
+		visualizationViewer.setPreferredSize(new Dimension(1000, 700));
+		Transformer<Node, Shape> vertexSize = new Transformer<Node, Shape>() {
+			public Shape transform(Node node) {
+				Ellipse2D circle = new Ellipse2D.Double(-node.getPopularity(),
+						-node.getPopularity(), 2 * node.getPopularity(),
+						2 * node.getPopularity());
+				return circle;
+			}
+		};
+		visualizationViewer.getRenderContext().setVertexShapeTransformer(
+				vertexSize);
+		visualizationViewer
+				.setVertexToolTipTransformer(new ToStringLabeller<Node>() {
+					public String transform(Graph<Node, Edge> graph) {
+						return graph.getVertices().toString();
+					}
+				});
+		JFrame frame = new JFrame("Interactive Graph View 3");
+		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		frame.getContentPane().add(visualizationViewer);
+		frame.pack();
+		frame.setVisible(true);
+	}
+
+	public static Map<String, Node> getTwitterNodes(
+			HashMap<String, UserAccount> twitterData) {
+		Iterator<String> iterator = twitterData.keySet().iterator();
+
+		Map<String, Node> twitterNodes = new HashMap<String, Node>();
+		while (iterator.hasNext()) {
+			String key = iterator.next().toString();
+			Node node = new Node();
+			UserAccount userAccount = new UserAccount(twitterData.get(key));
+			node.setTwitterId(userAccount.getId());
+			node.setName(userAccount.getFirstname() + userAccount.getLastname());
+			node.setPopularity(userAccount.getIn_degree(),
+					userAccount.getOut_degree());
+			twitterNodes.put(node.getTwitterId(), node);
+		}
+		return twitterNodes;
+	}
+
+	public static Map<Integer, Edge> getTwitterEdges(
+			HashMap<String, UserAccount> twitterData,
+			Map<String, Node> twitterNodes) {
+		Iterator<String> iterator = twitterData.keySet().iterator();
+		Map<Integer, Edge> twitterEdges = new HashMap<Integer, Edge>();
+		while (iterator.hasNext()) {
+			String key = iterator.next().toString();
+			UserAccount userAccount = new UserAccount(twitterData.get(key));
+			if (DEBUG_FLAG) {
+				System.out.println("CHECK ID: " + userAccount.getId());
+			}
+			Node startNode = twitterNodes.get(userAccount.getId());
+			LinkedList<String> followers = userAccount.getFollow();
+			if (followers != null) {
+				for (int i = 0; i < followers.size(); i++) {
+					Edge edge = new Edge();
+					edge.setStartNode(startNode);
+					edge.setEndNode(twitterNodes.get(followers.get(i)));
+					edge.setEdgeWeight(1, 'B');
+					twitterEdges.put(edge.getId(), edge);
+				}
+			}
+		}
+		return twitterEdges;
+	}
+}

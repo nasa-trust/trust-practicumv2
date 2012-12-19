@@ -1,0 +1,286 @@
+package dataset.twitterDataProcessing;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.Date;
+
+import org.json.simple.parser.ParseException;
+import java.sql.*;
+
+import dataset.utility.*;
+
+//TODO: How to calculate inDegree and outDegree ... count skip or not?
+
+/**
+ * @author NASA-Trust-Team
+ * 
+ */
+public class TwitterMain {
+
+	// TODO change userName and userId to Hashmap
+	// TODO import all node and edge keeping in memory and check from memory
+	static LinkedList<String> userName = new LinkedList<String>();
+	static LinkedList<String> userId = new LinkedList<String>();
+	static LinkedList<String> allId = new LinkedList<String>();
+	static LinkedList<String> allName = new LinkedList<String>();
+
+	static String fileName1 = "C:\\Users\\Cherry\\Desktop\\14798 - Practicum\\06-Dataset\\TwitterName_Cloud_tier1.csv";
+	static String fileName2 = "C:\\Users\\Cherry\\Desktop\\14798 - Practicum\\06-Dataset\\TwitterID_Cloud_tier1.csv";
+	static String pathName = "C:\\Users\\Cherry\\Desktop\\14798 - Practicum\\06-Dataset\\TwitterTestResult\\Result";
+
+	static HashMap<String, Integer> nodehm = new HashMap<String, Integer>();
+
+	public static void main(String[] args) throws IOException,
+			InterruptedException, ClassNotFoundException, SQLException {
+		// TODO Create cmd input later
+		int tier = 2;
+
+		// Database Connection
+		String userName = "root";
+		String password = "Cherry00";
+		String databaseName = "twitter";
+		String url = "jdbc:mysql://127.0.0.1:3306/" + databaseName;
+		Class.forName("com.mysql.jdbc.Driver");
+		Connection con = DriverManager.getConnection(url, userName, password);
+
+		// Reading records into Hashmap
+		LinkedList<String> nodeId = Utility.readMySQL(
+				"select id from twitter.node;", con);
+		for (int i = 0; i < nodeId.size(); i++) {
+			nodehm.put(nodeId.get(i), 1);
+			System.out.println(i);
+		}
+		userId = Utility.readMySQL(
+				sqlStatementReturnValue("twitter.node", "id", "tier",
+						String.valueOf(tier)), con);
+
+		for (int i = 0; i < userId.size(); i = i + 1) {
+			System.out
+					.println("----------------------------------------------------");
+			System.out.println("ID: " + userId.get(i) + " , " + (i + 1) + "/"
+					+ userId.size());
+			if (!nodehm.containsKey(userId.get(i))) {
+				Utility.writeMySQL(
+						sqlStatementAddRowNode("twitter.node", userId.get(i),
+								"", "1"), con);
+			} else {
+				System.out.println("SQL Error at Main : Node ID duplicated => "
+						+ userId.get(i));
+			}
+
+			LinkedList<String> status = Utility.readMySQL(
+					sqlStatementReturnValue("twitter.node", "status", "id",
+							userId.get(i)), con);
+
+			if (status.size() == 0) {
+				System.out.println("List Follows from id: " + userId.get(i));
+				twitterListFollow(userId.get(i), tier, con);
+			} else {
+				System.out.println("Skip List Follow: id => " + userId.get(i)
+						+ ", status => " + status.get(0));
+			}
+		}
+		con.close();
+
+		System.out.println("--------END--------");
+	}
+
+	private static String urlListFollow(String userID) {
+		return "http://api.twitter.com/1/friends/ids.json?cursor=-1&user_id="
+				+ userID;
+	}
+
+	private static String urlMapNameID(String field, String value) {
+		return "https://api.twitter.com/1/users/show.json?" + field + "="
+				+ value;
+	}
+
+	private static String sqlStatementAddRowNode(String tableName, String id,
+			String username, String tier) {
+		return "INSERT INTO " + tableName + " (id,username,tier) "
+				+ "VALUES ('" + id + "','" + username + "','" + tier + "');";
+	}
+
+	private static String sqlStatementAddRowEdge(String tableName,
+			String nodeA_id, String nodeB_id, String tier) {
+		return "INSERT INTO " + tableName + " (nodeA_id,nodeB_id,tier) "
+				+ "VALUES ('" + nodeA_id + "','" + nodeB_id + "','" + tier
+				+ "');";
+	}
+
+	private static String sqlStatementUpdate(String tableName,
+			String fieldName, int fieldValue, String conditionField,
+			String conditionValue) {
+		return "UPDATE " + tableName + " SET " + fieldName + " = '"
+				+ fieldValue + "' WHERE " + conditionField + " = '"
+				+ conditionValue + "';";
+	}
+
+	private static String sqlStatementUpdate(String tableName,
+			String fieldName, String fieldValue, String conditionField,
+			String conditionValue) {
+		return "UPDATE " + tableName + " SET " + fieldName + " = '"
+				+ fieldValue + "' WHERE " + conditionField + " = '"
+				+ conditionValue + "';";
+	}
+
+	private static String sqlStatementReturnValue(String tableName,
+			String fieldName, String conditionField, String conditionValue) {
+		return "SELECT " + fieldName + " from " + tableName + " where "
+				+ conditionField + " = '" + conditionValue + "';";
+	}
+
+	private static void twitterListFollow(String inputId, int tier,
+			Connection con) throws IOException, InterruptedException,
+			ClassNotFoundException, SQLException {
+
+		String queryText = Utility.sendGetRequest(urlListFollow(inputId));
+		while (Utility.hitLimit) {
+			System.out.println("Sleep 15 mins @ twitterListFollow: "
+					+ new Date());
+			Thread.sleep(15 * 60 * 1000);
+			queryText = Utility.sendGetRequest(urlListFollow(inputId));
+		}
+
+		if (queryText.compareTo("unauthorized") != 0) {
+
+			if (Utility.modeDebug)
+				System.out.println("Response from GET: " + queryText);
+
+			String field = "ids";
+			LinkedList<String> queryObject = (LinkedList<String>) Utility
+					.decodeJSON(queryText, field);
+
+			if (Utility.modeDebug) {
+				System.out.println(field + ": " + queryObject);
+				System.out.println("Size: " + queryObject.size());
+			}
+
+			if (nodehm.containsKey(inputId)) {
+				Utility.writeMySQL(
+						sqlStatementUpdate("twitter.node", "out_degree",
+								queryObject.size(), "id", inputId), con);
+			} else {
+				System.out
+						.println("SQL Error at twitterListFollow: Node ID does not exist => "
+								+ inputId);
+			}
+
+			if (queryObject.size() != 0) // && queryObject.size()<=20)
+			{
+
+				for (int i = 0; i < queryObject.size(); i = i + 1) {
+					System.out.println("Follow ID: "
+							+ String.valueOf(queryObject.get(i)));
+					if (!Utility.checkEdgeExist(inputId,
+							String.valueOf(queryObject.get(i)), con)) {
+						Utility.writeMySQL(
+								sqlStatementAddRowEdge("twitter.edge", inputId,
+										String.valueOf(queryObject.get(i)),
+										Integer.toString(tier)), con);
+					} else {
+						System.out
+								.println("SQL Error at twitterListFollow: Edges are duplicated => "
+										+ inputId
+										+ " , "
+										+ String.valueOf(queryObject.get(i)));
+					}
+
+					if (!nodehm.containsKey(String.valueOf(queryObject.get(i)))) {
+						Utility.writeMySQL(
+								sqlStatementAddRowNode("twitter.node",
+										String.valueOf(queryObject.get(i)), "",
+										Integer.toString(tier + 1)), con);
+					} else {
+						System.out.println("SQL Error at twitterListFollow : "
+								+ "Node ID duplicated => "
+								+ String.valueOf(queryObject.get(i)));
+					}
+				}
+				Utility.writeMySQL(
+						sqlStatementUpdate("twitter.node", "status", "listed",
+								"id", inputId), con);
+
+			}
+
+			// followers > 20
+			else {
+				System.out.println("Too many follow => id = " + inputId);
+				Utility.writeMySQL(
+						sqlStatementUpdate("twitter.node", "status", "skip",
+								"id", inputId), con);
+			}
+
+		}
+
+		// queryText = unauthorized
+		else {
+			System.out
+					.println("Error at twitterListFollow (Unauthorized) => id = "
+							+ inputId);
+			Utility.writeMySQL(
+					sqlStatementUpdate("twitter.node", "status",
+							"unauthorized", "id", inputId), con);
+		}
+	}
+
+	private static LinkedList<String> twitterMapNameID(
+			LinkedList<String> input, String mapCase, Connection con)
+			throws IOException, InterruptedException, ParseException {
+		LinkedList<String> output = new LinkedList<String>();
+		for (int i = 0; i < input.size(); i = i + 1) {
+			String queryIdText = Utility.sendGetRequest(urlMapNameID(mapCase,
+					String.valueOf(input.get(i))));
+			while (Utility.hitLimit) {
+				System.out.println("Sleep 15 mins @ twitterMapNameID: "
+						+ new Date());
+				Thread.sleep(15 * 60 * 1000);
+				queryIdText = Utility.sendGetRequest(urlMapNameID(mapCase,
+						String.valueOf(input.get(i))));
+			}
+
+			if (queryIdText.compareTo("unauthorized") != 0) {
+
+				if (Utility.modeDebug) {
+					System.out.println("Response from tierOne_Name: "
+							+ String.valueOf(input.get(i)));
+					System.out.println("Response from GET: " + queryIdText);
+				}
+
+				String field = null;
+				if (mapCase.equalsIgnoreCase("screen_name")) {
+					field = "id";
+				} else {
+					field = "screen_name";
+				}
+
+				if (Utility.modeDebug)
+					System.out.println(Utility.decodeJSON(queryIdText, field,
+							(int) 1));
+				output.add(output.size(), (String) Utility.decodeJSON(
+						queryIdText, field, (int) 1));
+
+			} else // queryIdText = unauthorized
+			{
+				String field = null;
+				if (mapCase.equalsIgnoreCase("screen_name")) {
+					field = "username";
+				} else {
+					field = "id";
+				}
+				System.out
+						.println("Error at twitterMapNameID (Unauthorized) =>"
+								+ mapCase + " = "
+								+ String.valueOf(input.get(i)));
+				Utility.writeMySQL(
+						sqlStatementUpdate("twitter.node", "status",
+								"unauthorized", field,
+								String.valueOf(input.get(i))), con);
+			}
+
+			// close for loop
+		}
+		return output;
+	}
+
+}

@@ -1,0 +1,58 @@
+package dataset;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.LinkedList;
+
+import dataset.twitterDataProcessing.*;
+import dataset.utility.*;
+
+/**
+ * @author NASA-Trust-Team
+ * 
+ */
+public class TwitterDataSource implements DatasetInterface {
+
+	public HashMap<String, UserAccount> getDataset() {
+		HashMap<String, UserAccount> twitter = new HashMap<String, UserAccount>();
+		String databasename = "twitter";
+		String username = "root";
+		String password = "theleo";
+		String url = "jdbc:mysql://127.0.0.1:3306/" + databasename;
+		Connection con = null;
+		try {
+			Class.forName("com.mysql.jdbc.Driver");
+			con = DriverManager.getConnection(url, username, password);
+		} catch (Exception e) {
+			System.out.println("MySQL Driver: " + e);
+		}
+		String sqlStatement = "select id from twitter.node where status = 'listed';";
+		LinkedList<String> id = Utility.readMySQL(sqlStatement, con);
+		sqlStatement = "select out_degree from twitter.node where status = 'listed';";
+		LinkedList<String> out_degree = Utility.readMySQL(sqlStatement, con);
+		sqlStatement = "select tier from twitter.node where status = 'listed';";
+		LinkedList<String> tier = Utility.readMySQL(sqlStatement, con);
+		LinkedList<String> follow = null;
+		for (int i = 0; i < id.size(); i = i + 1) {
+			UserAccount user = new UserAccount();
+			user.setId(id.get(i));
+			user.setOut_degree(Integer.parseInt(out_degree.get(i)));
+			user.setTier(Integer.parseInt(tier.get(i)));
+			sqlStatement = "SELECT nodeB_id FROM twitter.edge E where nodeA_id = '"
+					+ id.get(i)
+					+ "' and E.nodeB_id in (select N.id from twitter.node N where N.status = 'listed');";
+			follow = Utility.readMySQL(sqlStatement, con);
+			user.setFollow(follow);
+			twitter.put(id.get(i).toString(), user);
+		}
+		try {
+			con.close();
+		} catch (SQLException e) {
+			System.out.println("Connection Closed: " + e);
+		}
+		return twitter;
+
+	}
+}

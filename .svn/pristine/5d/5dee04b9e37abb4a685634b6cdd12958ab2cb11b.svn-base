@@ -1,0 +1,10 @@
+package dataset;
+
+import java.util.HashMap;
+
+
+public interface DatasetInterface {
+	@SuppressWarnings("rawtypes")
+	public HashMap getDataset();
+	
+}

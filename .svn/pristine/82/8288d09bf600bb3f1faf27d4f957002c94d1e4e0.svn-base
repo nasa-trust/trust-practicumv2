@@ -1,0 +1,290 @@
+package jungdemo;
+
+/*
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+
+import dataset.*;
+import dataset.twitterDataProcessing.UserAccount;
+import edu.uci.ics.jung.algorithms.layout.CircleLayout;
+import edu.uci.ics.jung.algorithms.layout.FRLayout;
+import edu.uci.ics.jung.algorithms.layout.ISOMLayout;
+import edu.uci.ics.jung.algorithms.layout.KKLayout;
+import edu.uci.ics.jung.algorithms.layout.Layout;
+import edu.uci.ics.jung.algorithms.layout.SpringLayout;
+import edu.uci.ics.jung.graph.DirectedSparseGraph;
+import edu.uci.ics.jung.graph.Graph;
+import edu.uci.ics.jung.graph.SparseMultigraph;
+import edu.uci.ics.jung.graph.event.GraphEvent.Vertex;
+import edu.uci.ics.jung.graph.util.EdgeType;
+import edu.uci.ics.jung.visualization.BasicVisualizationServer;
+import edu.uci.ics.jung.visualization.VisualizationViewer;
+import edu.uci.ics.jung.visualization.control.CrossoverScalingControl;
+import edu.uci.ics.jung.visualization.control.PluggableGraphMouse;
+import edu.uci.ics.jung.visualization.control.ScalingGraphMousePlugin;
+import edu.uci.ics.jung.visualization.control.TranslatingGraphMousePlugin;
+import edu.uci.ics.jung.visualization.decorators.ToStringLabeller;
+import element.Edge;
+import element.Node;
+
+import java.awt.Dimension;
+import java.awt.Shape;
+import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Ellipse2D;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.swing.JFrame;
+//import jungdemo.BasicDirectedGraph.MyNode;
+
+import org.apache.commons.collections15.Transformer;
+
+//import jungdemo.*;
+
+/**
+ *
+ * @author Shrikant
+ */
+public class JUNGDemo {
+
+
+	
+    /**
+     * @param args
+     *            the command line arguments
+     */
+    public static void main(String[] args) {
+        // Integration Part
+
+        DatasetInterface dataset = new TwitterDataSource();
+
+        @SuppressWarnings("unchecked")
+        HashMap<String, UserAccount> userAccount = dataset.getDataset();
+
+        Map<String, Node> twNodes = new HashMap<String, Node>(
+                getTwitterNodes(userAccount));
+
+        Iterator<String> iterator = twNodes.keySet().iterator();
+
+        while (iterator.hasNext()) {
+            String key = iterator.next().toString();
+            System.out.println("----------Node--------------");
+            System.out.println(twNodes.get(key).getTwitterId());
+            System.out.println(twNodes.get(key).getPopularity());
+        }
+        System.out.println("---------END----------");
+
+        Map<Integer, Edge> twEdges = new HashMap<Integer, Edge>(
+                getTwitterEdges(userAccount, twNodes));
+
+        // /////////////////////////////////////////////////////
+
+        // LinkedList<Integer> nodes = new LinkedList<Integer>();
+        // nodes.add(1);
+        // nodes.add(2);
+        // nodes.add(3);
+        // LinkedList<jungdemo.Edge> edges = new LinkedList<jungdemo.Edge>();
+        // jungdemo.Edge edge = new jungdemo.Edge();
+        // edge.setEndpoint1(1);
+        // edge.setEndpoint2(3);
+        // edge.setType(EdgeType.UNDIRECTED);
+        // edge.setEdgeName("Edge-A");
+        // edges.add(edge);
+        // edge = new jungdemo.Edge();
+        // edge.setEndpoint1(2);
+        // edge.setEndpoint2(3);
+        // edge.setType(EdgeType.DIRECTED);
+        // edge.setEdgeName("Edge-B");
+        // edges.add(edge);
+        // edge = new jungdemo.Edge();
+        // edge.setEndpoint1(3);
+        // edge.setEndpoint2(2);
+        // edge.setType(EdgeType.DIRECTED);
+        // edge.setEdgeName("Edge-C");
+        // edges.add(edge);
+
+        JUNGDemo demo = new JUNGDemo();
+        Graph<Node, Edge> graph = demo.instantiateGraphCreation(twNodes,
+                twEdges);
+
+        demo.projectGraph(graph);
+
+    }
+
+    public Graph<Node, Edge> instantiateGraphCreation(
+            Map<String, Node> nodes, Map<Integer, Edge> edges) {
+        Graph<Node, Edge> graph = new SparseMultigraph<Node, Edge>();
+//        new DirectedSparseGraph();
+        Set<String> nodesSet = nodes.keySet();
+        Iterator<String> itNodes = nodesSet.iterator();
+        while (itNodes.hasNext()) {
+            String twitterId = itNodes.next();
+            Node node = nodes.get(twitterId);
+            graph.addVertex(node);
+        }
+        System.out.println(edges);
+        Set<Integer> edgesSet = edges.keySet();
+        Iterator<Integer> itEdges = edgesSet.iterator();
+        while (itEdges.hasNext()) {
+            int edgeValue = itEdges.next();
+            Edge edge = edges.get(edgeValue);
+            // System.out.println(edge.getEndpoint1());
+            System.out.println("Edge" + edge.getStartNode());
+            graph.addEdge(edge,edge.getStartNode(),
+                    edge.getEndNode(),
+                    EdgeType.DIRECTED);
+        }
+        System.out.println(graph);
+        return graph;
+    }
+
+    public void projectGraph(Graph<Node, Edge> graph) {       
+        Layout<Node, Edge> layout = new ISOMLayout(graph);
+        layout.setSize(new Dimension(1000, 700)); // sets the initial size of
+                                                    // the
+                                                    // space
+		BasicVisualizationServer<Node, Edge> vv = new BasicVisualizationServer<Node, Edge>(
+				layout);
+        vv.setPreferredSize(new Dimension(1000, 700)); // Sets the viewing area
+                                                        // size
+        vv.getRenderContext().setVertexLabelTransformer(new ToStringLabeller());
+        vv.getRenderContext().setEdgeLabelClosenessTransformer(
+                new ToStringLabeller());
+
+
+        //PluggableGraphMouse gm = new PluggableGraphMouse();
+        //gm.add(new TranslatingGraphMousePlugin(MouseEvent.BUTTON1_MASK));
+        //gm.add(new ScalingGraphMousePlugin(new CrossoverScalingControl(), 0,
+                //1.1f, 0.9f));
+
+        //vv.setGraphMouse(gm);
+
+        Transformer<Node, Shape> vertexSize = new Transformer<Node, Shape>() {
+            public Shape transform(Node node) {
+                Ellipse2D circle = new Ellipse2D.Double(-node.getPopularity(), -node.getPopularity(), 2*node.getPopularity(), 2*node.getPopularity());
+                // in this case, the vertex is twice as large
+//                if (i == 2)
+//                    return AffineTransform.getScaleInstance(2, 2)
+//                            .createTransformedShape(circle);
+//                else
+                    return circle;
+            }           
+        };
+
+        vv.getRenderContext().setVertexShapeTransformer(vertexSize);
+
+
+        JFrame frame = new JFrame("Interactive Graph View 3");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.getContentPane().add(vv);
+        frame.pack();
+        frame.setVisible(true);
+
+    }
+
+    // public void functionBack(){
+    // Graph<Integer, String> g = new SparseMultigraph<Integer, String>();
+    // LinkedList<Integer> nodes = new LinkedList<Integer>();
+    // nodes.add(1);
+    // nodes.add(2);
+    // nodes.add(3);
+    // LinkedList<Edge> edges = new LinkedList<Edge>();
+    // Edge edge = new Edge();
+    // edge.setEndpoint1(1);
+    // edge.setEndpoint1(3);
+    // edge.setType(EdgeType.UNDIRECTED);
+    // edge.setEdgeName("Edge-A");
+    // edges.add(edge);
+    // edge.setEndpoint1(2);
+    // edge.setEndpoint1(3);
+    // edge.setType(EdgeType.DIRECTED);
+    // edge.setEdgeName("Edge-B");
+    // edges.add(edge);
+    // edge.setEndpoint1(3);
+    // edge.setEndpoint1(2);
+    // edge.setType(EdgeType.DIRECTED);
+    // edge.setEdgeName("Edge-C");
+    // edges.add(edge);
+    // g.addVertex((Integer) 1);
+    // g.addVertex((Integer) 2);
+    // g.addVertex((Integer) 3);
+    // g.addEdge("Edge-A", 1, 2); // Note that Java 1.5 auto-boxes primitives
+    // g.addEdge("Edge-B", 2, 3);
+    // System.out.println("The graph g = " + g.toString());
+    // Graph<Integer, String> g2 = new SparseMultigraph<Integer, String>();
+    // g2.addVertex((Integer) 1);
+    // g2.addVertex((Integer) 2);
+    // g2.addVertex((Integer) 3);
+    // g2.addEdge("Edge-A", 1, 3);
+    // g2.addEdge("Edge-B", 2, 3, EdgeType.DIRECTED);
+    // g2.addEdge("Edge-C", 3, 2, EdgeType.DIRECTED);
+    // g2.addEdge("Edge-P", 2, 3); // A parallel edge
+    // System.out.println("The graph g2 = " + g2.toString());
+    //
+    // Layout<Integer, String> layout = new CircleLayout(g);
+    // layout.setSize(new Dimension(300, 300)); // sets the initial size of the
+    // space
+    // BasicVisualizationServer<Integer, String> vv =
+    // new BasicVisualizationServer<Integer, String>(layout);
+    // vv.setPreferredSize(new Dimension(350, 350)); //Sets the viewing area
+    // size
+    // vv.getRenderContext().setVertexLabelTransformer(new ToStringLabeller());
+    // JFrame frame = new JFrame("Simple Graph View");
+    // frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    // frame.getContentPane().add(vv);
+    // frame.pack();
+    // frame.setVisible(true);
+    // }
+    public static Map<String, Node> getTwitterNodes(
+            HashMap<String, UserAccount> twitterData) {
+        Iterator<String> iterator = twitterData.keySet().iterator();
+
+        Map<String, Node> twitterNodes = new HashMap<String, Node>();
+        while (iterator.hasNext()) {
+            String key = iterator.next().toString();
+            Node node = new Node();
+            UserAccount userAccount = new UserAccount(twitterData.get(key));
+            node.setTwitterId(userAccount.getId());
+            node.setName(userAccount.getFirstname() + userAccount.getLastname());
+            node.setPopularity(userAccount.getIn_degree(),
+                    userAccount.getOut_degree());
+            twitterNodes.put(node.getTwitterId(), node);
+        }
+        return twitterNodes;
+    }
+
+    public static Map<Integer, Edge> getTwitterEdges(
+            HashMap<String, UserAccount> twitterData,
+            Map<String, Node> twitterNodes) {
+        Iterator<String> iterator = twitterData.keySet().iterator();
+        Map<Integer, Edge> twitterEdges = new HashMap<Integer, Edge>();
+        while (iterator.hasNext()) {
+            String key = iterator.next().toString();
+            UserAccount userAccount = new UserAccount(twitterData.get(key));
+            System.out.println("CHECK Key: " + key);
+            System.out.println("CHECK ID: " + userAccount.getId());
+            Node startNode = twitterNodes.get(userAccount.getId());
+            System.out.println(twitterNodes.keySet());
+            // if (startNode == null )System.out.println("Divya!");
+            LinkedList<String> followers = userAccount.getFollow();
+            if (followers != null) {
+                for (int i = 0; i < followers.size(); i++) {
+                    Edge edge = new Edge();
+                    edge.setStartNode(startNode);
+                    System.out.println("node followers: " + followers.get(i));
+                    edge.setEndNode(twitterNodes.get(followers.get(i)));
+                    edge.setEdgeWeight(1, 'B');
+                    twitterEdges.put(edge.getId(), edge);
+                }
+            }
+        }
+        return twitterEdges;
+    }
+}
